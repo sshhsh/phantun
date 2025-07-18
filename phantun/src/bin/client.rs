@@ -111,7 +111,8 @@ async fn main() -> io::Result<()> {
 
     let ipv4_only = matches.get_flag("ipv4_only");
 
-    let remote_addr = tokio::net::lookup_host(matches.get_one::<String>("remote").unwrap())
+    let remote_host = matches.get_one::<String>("remote").unwrap().clone();
+    let mut remote_addr = tokio::net::lookup_host(&remote_host)
         .await
         .expect("bad remote address or host")
         .find(|addr| !ipv4_only || addr.is_ipv4())
@@ -189,6 +190,13 @@ async fn main() -> io::Result<()> {
             let sock = stack.connect(remote_addr).await;
             if sock.is_none() {
                 error!("Unable to connect to remote {}", remote_addr);
+                // retry DNS resolution
+                remote_addr = tokio::net::lookup_host(&remote_host)
+                    .await
+                    .expect("bad remote address or host")
+                    .find(|addr| !ipv4_only || addr.is_ipv4())
+                    .expect("unable to resolve remote host name");
+                info!("Remote address is: {}", remote_addr);
                 continue;
             }
 
